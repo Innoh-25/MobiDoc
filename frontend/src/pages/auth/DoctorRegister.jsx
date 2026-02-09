@@ -35,7 +35,8 @@ const DoctorRegister = () => {
     setLoading(false);
     
     if (result.success) {
-      navigate('/doctor/login');
+      // Redirect to onboarding page immediately after registration
+      navigate('/doctor/onboarding');
     }
   };
 
@@ -48,13 +49,33 @@ const DoctorRegister = () => {
         <div className="flex justify-center mb-4">
           <Logo className="h-12 w-12" />
         </div>
-        <h2 className="text-3xl font-bold text-gray-900">Doctor Registration</h2>
+        <h2 className="text-3xl font-bold text-gray-900">Create Account</h2>
         <p className="mt-2 text-gray-600">
           Join MobiDoc as a healthcare professional
         </p>
       </div>
 
       <div className="card p-8 shadow-lg">
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            I want to register as:
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              to="/patient/register"
+              className="btn-outline flex justify-center py-2.5"
+            >
+              Patient
+            </Link>
+            <button
+              className="btn-primary flex justify-center py-2.5"
+              disabled
+            >
+              Doctor
+            </button>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Personal Information */}
@@ -271,36 +292,10 @@ const DoctorRegister = () => {
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
             Already have an account?{' '}
-            <Link to="/doctor/login" className="font-medium text-primary-600 hover:text-primary-500">
+            <Link to="/login" className="font-medium text-primary-600 hover:text-primary-500">
               Sign in here
             </Link>
           </p>
-        </div>
-
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Or register as</span>
-            </div>
-          </div>
-
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            <Link
-              to="/patient/register"
-              className="btn-outline flex justify-center py-2.5"
-            >
-              Patient
-            </Link>
-            <Link
-              to="/admin/login"
-              className="btn-outline flex justify-center py-2.5"
-            >
-              Admin
-            </Link>
-          </div>
         </div>
       </div>
     </div>

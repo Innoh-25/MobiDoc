@@ -35,6 +35,54 @@ const patientSchema = new mongoose.Schema({
     enum: ['male', 'female', 'other'],
     lowercase: true
   },
+  
+  // NEW: Add location fields
+  location: {
+    area: {
+      type: String,
+      trim: true
+    },
+    city: {
+      type: String,
+      trim: true
+    },
+    county: {
+      type: String,
+      trim: true
+    },
+    address: {
+      type: String,
+      trim: true
+    }
+  },
+  
+  // Medical information
+  medicalInfo: {
+    bloodGroup: {
+      type: String,
+      enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+    },
+    allergies: [{
+      type: String,
+      trim: true
+    }],
+    chronicConditions: [{
+      type: String,
+      trim: true
+    }],
+    medications: [{
+      name: { type: String, trim: true },
+      dosage: { type: String, trim: true },
+      frequency: { type: String, trim: true }
+    }]
+  },
+  
+  emergencyContact: {
+    name: { type: String, trim: true },
+    phone: { type: String, trim: true },
+    relationship: { type: String, trim: true }
+  },
+  
   isVerified: {
     type: Boolean,
     default: false
@@ -53,11 +101,10 @@ const patientSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Hash password before saving
-// Use async middleware without the `next` callback. When using async functions
-// Mongoose supports returning/throwing instead of calling next(). Passing a
-// `next` parameter and also using async/await can lead to `next` not being a
-// function depending on Mongoose version/runtime, so avoid calling it here.
+// Add index for location
+patientSchema.index({ 'location.area': 1, 'location.city': 1 });
+
+// Keep existing pre-save hooks
 patientSchema.pre('save', async function() {
   if (!this.isModified('password')) return;
 
@@ -65,13 +112,10 @@ patientSchema.pre('save', async function() {
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Update updatedAt on save
-// Use synchronous middleware without `next` to avoid callback-style mixing with async hooks
 patientSchema.pre('save', function() {
   this.updatedAt = Date.now();
 });
 
-// Compare password method
 patientSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };

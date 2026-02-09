@@ -7,11 +7,11 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [userType, setUserType] = useState('patient');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
+  const [userType, setUserType] = useState('patient');
 
   const handleChange = (e) => {
     setFormData({
@@ -47,7 +47,7 @@ const Login = () => {
       <div className="card p-8 shadow-lg">
         <div className="mb-6">
           <div className="flex rounded-lg overflow-hidden border border-gray-300">
-            {['patient', 'doctor', 'admin'].map((type) => (
+            {['patient', 'doctor'].map((type) => (
               <button
                 key={type}
                 type="button"
@@ -61,6 +61,11 @@ const Login = () => {
                 {type}
               </button>
             ))}
+          </div>
+          <div className="mt-4 text-center">
+            <p className="text-sm text-gray-600">
+              Admin? <a href="/admin/login" className="text-primary-600 hover:text-primary-500 font-medium">Access admin panel here</a>
+            </p>
           </div>
         </div>
 

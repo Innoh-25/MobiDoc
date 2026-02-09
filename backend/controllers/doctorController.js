@@ -256,5 +256,199 @@ exports.uploadDocuments = async (req, res, next) => {
   }
 };
 
-// Similar forgotPassword and resetPassword functions as in patientController
-// (Copy and modify accordingly)
+// @desc    Complete doctor onboarding
+// @route   POST /api/doctors/onboard
+// @access  Private (Doctor)
+exports.onboardDoctor = async (req, res, next) => {
+  try {
+    const {
+      location,
+      consultationFee,
+      availability,
+      languages,
+      bio,
+      emergencyContact
+    } = req.body;
+
+    // Check if doctor exists and is approved
+    const doctor = await Doctor.findById(req.user.id);
+    
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        error: 'Doctor not found'
+      });
+    }
+
+    if (doctor.verificationStatus !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        error: 'Your account must be approved by admin first'
+      });
+    }
+
+    if (doctor.isOnboarded) {
+      return res.status(400).json({
+        success: false,
+        error: 'Onboarding already completed'
+      });
+    }
+
+    // Update doctor with onboarding information
+    const updateData = {
+      location,
+      isOnboarded: true
+    };
+
+    // Add profile information if provided
+    if (consultationFee !== undefined) {
+      updateData['profile.consultationFee'] = consultationFee;
+    }
+    if (availability) {
+      updateData['profile.availability'] = availability;
+    }
+    if (languages) {
+      updateData['profile.languages'] = languages;
+    }
+    if (bio) {
+      updateData['profile.bio'] = bio;
+    }
+    if (emergencyContact) {
+      updateData['profile.emergencyContact'] = emergencyContact;
+    }
+
+    // Handle file uploads if any
+    if (req.files) {
+      req.files.forEach(file => {
+        if (file.fieldname === 'licenseDocument') {
+          updateData['documents.licenseDocument'] = file.path;
+        } else if (file.fieldname === 'idDocument') {
+          updateData['documents.idDocument'] = file.path;
+        } else if (file.fieldname === 'qualificationDocument') {
+          updateData['documents.qualificationDocument'] = file.path;
+        }
+      });
+    }
+
+    const updatedDoctor = await Doctor.findByIdAndUpdate(
+      req.user.id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    res.status(200).json({
+      success: true,
+      message: 'Onboarding completed successfully',
+      data: updatedDoctor
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Search doctors by area/specialization
+// @route   GET /api/doctors/search
+// @access  Private (Patient)
+exports.searchDoctors = async (req, res, next) => {
+  try {
+    const { area, city, specialization, consultationType } = req.query;
+    const patientId = req.user.id;
+
+    // Get patient's location if available
+    const Patient = require('../models/Patient');
+    const patient = await Patient.findById(patientId).select('location');
+    
+    // Build search criteria
+    const searchCriteria = {
+      verificationStatus: 'approved',
+      isOnboarded: true,
+      isActive: true
+    };
+
+    // If patient has location, use it for search
+    if (patient && patient.location && patient.location.area) {
+      searchCriteria['location.area'] = new RegExp(patient.location.area, 'i');
+    }
+    
+    // Override with query parameters if provided
+    if (area) {
+      searchCriteria['location.area'] = new RegExp(area, 'i');
+    }
+    if (city) {
+      searchCriteria['location.city'] = new RegExp(city, 'i');
+    }
+    if (specialization) {
+      searchCriteria.specialization = new RegExp(specialization, 'i');
+    }
+
+    // Find available doctors
+    let doctors = await Doctor.find(searchCriteria)
+      .select('-password -documents')
+      .lean();
+
+    // Filter out doctors currently in consultation
+    const Consultation = require('../models/Consultation');
+    const currentTime = new Date();
+    
+    // Find doctors with active consultations
+    const activeConsultations = await Consultation.find({
+      doctorId: { $in: doctors.map(d => d._id) },
+      status: { $in: ['accepted'] },
+      completionTime: { $gt: currentTime }
+    }).select('doctorId');
+
+    const busyDoctorIds = activeConsultations.map(c => c.doctorId.toString());
+
+    // Filter and add availability status
+    const availableDoctors = doctors.map(doctor => {
+      const isAvailable = !busyDoctorIds.includes(doctor._id.toString());
+      return {
+        ...doctor,
+        isAvailable,
+        distance: 'Nearby' // Simple distance - can be enhanced with actual coordinates
+      };
+    }).filter(doctor => doctor.isAvailable); // Only return available doctors
+
+    res.status(200).json({
+      success: true,
+      count: availableDoctors.length,
+      data: availableDoctors
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get doctor's onboarding status
+// @route   GET /api/doctors/onboarding-status
+// @access  Private (Doctor)
+exports.getOnboardingStatus = async (req, res, next) => {
+  try {
+    const doctor = await Doctor.findById(req.user.id)
+      .select('-password');
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        error: 'Doctor not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        isOnboarded: doctor.isOnboarded,
+        verificationStatus: doctor.verificationStatus,
+        isActive: doctor.isActive,
+        profile: doctor.profile,
+        location: doctor.location,
+        documents: doctor.documents
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};

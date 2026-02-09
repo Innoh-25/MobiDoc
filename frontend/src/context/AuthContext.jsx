@@ -26,7 +26,6 @@ export const AuthProvider = ({ children }) => {
   const fetchUser = async () => {
     try {
       console.log('AuthProvider.fetchUser: start');
-      // Determine user type from token or try different endpoints
       const userType = localStorage.getItem('userType') || 'patient';
       let response;
       
@@ -39,6 +38,19 @@ export const AuthProvider = ({ children }) => {
       }
       
       setUser(response.data.data);
+      
+      // Check if doctor needs onboarding
+      if (userType === 'doctor') {
+        try {
+          const onboardingStatus = await api.get('/doctors/onboarding-status');
+          if (!onboardingStatus.data.data.isOnboarded && 
+              onboardingStatus.data.data.verificationStatus === 'approved') {
+            navigate('/doctor/onboarding');
+          }
+        } catch (error) {
+          console.error('Error checking onboarding status:', error);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch user:', error);
       logout();
@@ -66,6 +78,20 @@ export const AuthProvider = ({ children }) => {
 
       toast.success(`Welcome back, ${data.fullName || data.name}!`);
       
+      // For doctors, check onboarding status
+      if (userType === 'doctor') {
+        try {
+          const onboardingStatus = await api.get('/doctors/onboarding-status');
+          if (!onboardingStatus.data.data.isOnboarded && 
+              onboardingStatus.data.data.verificationStatus === 'approved') {
+            navigate('/doctor/onboarding');
+            return { success: true };
+          }
+        } catch (error) {
+          console.error('Error checking onboarding status:', error);
+        }
+      }
+      
       // Redirect based on user type
       if (userType === 'patient') navigate('/patient/dashboard');
       else if (userType === 'doctor') navigate('/doctor/dashboard');
@@ -88,11 +114,18 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post(endpoint, data);
       
       if (userType === 'doctor') {
-        toast.success('Registration successful! Please wait for admin verification.');
-        navigate('/doctor/login');
+        // Auto-login after doctor registration
+        const { token } = response.data;
+        localStorage.setItem('token', token);
+        localStorage.setItem('userType', 'doctor');
+        setToken(token);
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        toast.success('Registration successful! Please complete your onboarding.');
+        navigate('/doctor/onboarding');
       } else {
         toast.success('Registration successful! Please login.');
-        navigate('/patient/login');
+        navigate('/login');
       }
       
       return { success: true };
@@ -104,13 +137,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    const userType = localStorage.getItem('userType') || 'patient';
+    
     localStorage.removeItem('token');
     localStorage.removeItem('userType');
     setToken(null);
     setUser(null);
     delete api.defaults.headers.common['Authorization'];
     
-    const userType = localStorage.getItem('userType') || 'patient';
     if (userType === 'admin') {
       navigate('/admin/login');
     } else {

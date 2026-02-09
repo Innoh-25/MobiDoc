@@ -284,3 +284,79 @@ exports.getConsultation = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Request consultation with doctor selection
+// @route   POST /api/consultations/request
+// @access  Private (Patient)
+exports.requestConsultation = async (req, res, next) => {
+  try {
+    const { location, symptoms, consultationType, doctorId } = req.body;
+    
+    let doctorInfo = null;
+    
+    // If doctorId is provided, verify doctor exists and is available
+    if (doctorId) {
+      const doctor = await Doctor.findById(doctorId);
+      
+      if (!doctor) {
+        return res.status(404).json({
+          success: false,
+          error: 'Doctor not found'
+        });
+      }
+      
+      // Check if doctor is verified and onboarded
+      if (doctor.verificationStatus !== 'approved' || !doctor.isOnboarded) {
+        return res.status(400).json({
+          success: false,
+          error: 'Doctor is not available for consultations'
+        });
+      }
+      
+      // Check if doctor is currently in consultation
+      const currentConsultation = await Consultation.findOne({
+        doctorId: doctorId,
+        status: 'accepted'
+      });
+      
+      if (currentConsultation) {
+        return res.status(400).json({
+          success: false,
+          error: 'Doctor is currently busy with another consultation'
+        });
+      }
+      
+      doctorInfo = {
+        doctorId,
+        consultationFee: doctor.profile?.consultationFee || 0
+      };
+    }
+    
+    const consultation = await Consultation.create({
+      patientId: req.user.id,
+      ...(doctorInfo && { doctorId: doctorInfo.doctorId }),
+      location,
+      symptoms,
+      consultationType: consultationType || 'general',
+      status: doctorId ? 'requested' : 'requested', // If doctor selected, it's directly requested
+      ...(doctorInfo && { consultationFee: doctorInfo.consultationFee }),
+      requestTime: Date.now()
+    });
+    
+    // Populate patient info
+    await consultation.populate('patientId', 'fullName phone');
+    
+    if (doctorId) {
+      await consultation.populate('doctorId', 'fullName specialization phone');
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: doctorId ? 'Consultation request sent to doctor' : 'Consultation requested successfully',
+      data: consultation
+    });
+    
+  } catch (error) {
+    next(error);
+  }
+};

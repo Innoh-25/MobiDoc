@@ -23,6 +23,23 @@ router.post('/login', doctorController.login);
 
 // Protected routes
 router.use(protectDoctor);
+
+// New routes for onboarding
+router.get('/onboarding-status', doctorController.getOnboardingStatus);
+router.post(
+  '/onboard',
+  upload.fields([
+    { name: 'licenseDocument', maxCount: 1 },
+    { name: 'idDocument', maxCount: 1 },
+    { name: 'qualificationDocument', maxCount: 1 }
+  ]),
+  doctorController.onboardDoctor
+);
+
+// Search route (accessible by patients)
+router.get('/search', doctorController.searchDoctors);
+
+// Existing routes
 router.get('/profile', doctorController.getProfile);
 router.put('/profile', doctorController.updateProfile);
 router.post('/upload-documents', upload.array('documents', 5), doctorController.uploadDocuments);

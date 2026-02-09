@@ -60,6 +60,77 @@ const doctorSchema = new mongoose.Schema({
     min: 0,
     default: 0
   },
+  
+  // NEW: Add location fields for area-based search
+  location: {
+    area: {
+      type: String,
+      trim: true
+    },
+    city: {
+      type: String,
+      trim: true
+    },
+    county: {
+      type: String,
+      trim: true
+    },
+    address: {
+      type: String,
+      trim: true
+    },
+    coordinates: {
+      latitude: { type: Number },
+      longitude: { type: Number }
+    }
+  },
+  
+  // NEW: Add onboarding fields
+  isOnboarded: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Onboarding profile details (filled after registration)
+  profile: {
+    consultationFee: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    availability: {
+      days: [{
+        type: String,
+        enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+      }],
+      hours: {
+        start: { type: String }, // Format: "09:00"
+        end: { type: String }    // Format: "17:00"
+      }
+    },
+    languages: [{
+      type: String,
+      trim: true
+    }],
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 500
+    },
+    emergencyContact: {
+      name: { type: String, trim: true },
+      phone: { type: String, trim: true },
+      relationship: { type: String, trim: true }
+    }
+  },
+  
+  // Documents (now separate from the documents array for verification)
+  documents: {
+    licenseDocument: { type: String }, // File path
+    idDocument: { type: String }, // File path
+    qualificationDocument: { type: String } // File path
+  },
+  
   verificationStatus: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],
@@ -69,11 +140,6 @@ const doctorSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  documents: [{
-    fileName: String,
-    filePath: String,
-    uploadedAt: Date
-  }],
   isActive: {
     type: Boolean,
     default: false
@@ -92,8 +158,11 @@ const doctorSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Hash password before saving
-// Use async middleware without `next`; return/throw handles flow control in modern Mongoose
+// Add indexes for location-based queries
+doctorSchema.index({ 'location.area': 1, 'location.city': 1 });
+doctorSchema.index({ verificationStatus: 1, isOnboarded: 1 });
+
+// Keep existing pre-save hooks
 doctorSchema.pre('save', async function() {
   if (!this.isModified('password')) return;
 
@@ -101,12 +170,10 @@ doctorSchema.pre('save', async function() {
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Update updatedAt on save
 doctorSchema.pre('save', function() {
   this.updatedAt = Date.now();
 });
 
-// Compare password method
 doctorSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };

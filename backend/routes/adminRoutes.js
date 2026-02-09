@@ -17,7 +17,9 @@ router.post(
 // Protected routes
 router.use(protectAdmin);
 router.get('/dashboard', adminController.getDashboardStats);
+router.get('/recent-activities', adminController.getRecentActivities);
 router.get('/doctors/pending', adminController.getPendingDoctors);
+router.get('/doctors/pending-onboarding', adminController.getPendingOnboardingDoctors);
 router.get('/doctors', adminController.getAllDoctors);
 router.put('/doctors/:id/approve', adminController.approveDoctor);
 router.put('/doctors/:id/reject', adminController.rejectDoctor);
