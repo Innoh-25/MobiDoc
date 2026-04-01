@@ -53,25 +53,6 @@ const PatientRegister = () => {
       </div>
 
       <div className="card p-8 shadow-lg">
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            I want to register as:
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              className="btn-primary flex justify-center py-2.5"
-              disabled
-            >
-              Patient
-            </button>
-            <Link
-              to="/doctor/register"
-              className="btn-outline flex justify-center py-2.5"
-            >
-              Doctor
-            </Link>
-          </div>
-        </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

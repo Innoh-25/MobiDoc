@@ -58,7 +58,7 @@ const Login = () => {
               value={formData.email}
               onChange={handleChange}
               className="input"
-              placeholder="you@example.com"
+              placeholder="your email@gmail.com"
               required
             />
           </div>
@@ -151,7 +151,7 @@ const Login = () => {
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
             <Link 
-              to={userType === 'patient' ? '/patient/register' : '/doctor/register'} 
+              to={'/register'} 
               className="font-medium text-primary-600 hover:text-primary-500"
             >
               Sign up here

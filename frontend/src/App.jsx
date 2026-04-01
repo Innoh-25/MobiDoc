@@ -8,6 +8,7 @@ import { Layout, AuthLayout } from './components/common/Layout';
 import Login from './pages/auth/Login';
 import PatientRegister from './pages/auth/PatientRegister';
 import DoctorRegister from './pages/auth/DoctorRegister';
+import AccountTypeSelection from './pages/auth/AccountTypeSelection'
 // AdminLogin is imported later with other admin pages
 
 // Patient Pages
@@ -53,6 +54,8 @@ function App() {
       <AuthProvider>
         <ConsultationProvider>
           <Routes>
+            {/* Account Type Selection for Registration */}
+            <Route path="/register" element={<AccountTypeSelection />} />
             {/* Auth Routes */}
             <Route path="/" element={<AuthLayout />}>
               <Route index element={<Navigate to="/login" />} />
