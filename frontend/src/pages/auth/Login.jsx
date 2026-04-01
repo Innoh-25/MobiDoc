@@ -11,7 +11,7 @@ const Login = () => {
     email: '',
     password: '',
   });
-  const [userType, setUserType] = useState('patient');
+  const [userType, setUserType] = useState('');
 
   const handleChange = (e) => {
     setFormData({
@@ -45,33 +45,11 @@ const Login = () => {
       </div>
 
       <div className="card p-8 shadow-lg">
-        <div className="mb-6">
-          <div className="flex rounded-lg overflow-hidden border border-gray-300">
-            {['patient', 'doctor'].map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setUserType(type)}
-                className={`flex-1 py-2.5 text-sm font-medium capitalize transition-colors ${
-                  userType === type
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 text-center">
-            <p className="text-sm text-gray-600">
-              Admin? <a href="/admin/login" className="text-primary-600 hover:text-primary-500 font-medium">Access admin panel here</a>
-            </p>
-          </div>
-        </div>
+        
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-900 mb-1">
               Email Address
             </label>
             <input
@@ -86,7 +64,7 @@ const Login = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-900 mb-1">
               Password
             </label>
             <input
@@ -98,6 +76,38 @@ const Login = () => {
               placeholder="••••••••"
               required
             />
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-900 mb-3">
+              Select account type
+            </label>
+            <div className="space-y-3">
+              {['patient', 'doctor'].map((type) => (
+                <label
+                  key={type}
+                  className={`flex items-center p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    userType === type
+                      ? 'border-primary-500 bg-primary-50'
+                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="userType"
+                    value={type}
+                    checked={userType === type}
+                    onChange={() => setUserType(type)}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300"
+                  />
+                  <span className="ml-3 capitalize text-gray-700 font-medium">
+                    {type}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-4 text-center">
+            </div>
           </div>
 
           <div className="flex items-center justify-between">
@@ -118,6 +128,8 @@ const Login = () => {
               Forgot password?
             </Link>
           </div>
+
+          
 
           <button
             type="submit"
