@@ -23,6 +23,31 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token]);
 
+  // Listen for global unauthorized events (emitted by api interceptor)
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      // Mirror logout behaviour but perform it here so we can use navigate()
+      const userType = localStorage.getItem('userType') || 'patient';
+
+      localStorage.removeItem('token');
+      localStorage.removeItem('userType');
+      setToken(null);
+      setUser(null);
+      delete api.defaults.headers.common['Authorization'];
+
+      if (userType === 'admin') {
+        navigate('/admin/login');
+      } else {
+        navigate('/login');
+      }
+
+      toast.success('Session expired. Please log in again.');
+    };
+
+    window.addEventListener('app:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('app:unauthorized', handleUnauthorized);
+  }, [navigate]);
+
   const fetchUser = async () => {
     try {
       console.log('AuthProvider.fetchUser: start');

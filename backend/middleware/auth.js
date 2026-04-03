@@ -21,12 +21,29 @@ const auth = (Model) => async (req, res, next) => {
     }
     
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('JWT verify failed:', err.message);
+      }
+      return res.status(401).json({
+        success: false,
+        error: 'Not authorized to access this route'
+      });
+    }
     
     // Find user by ID
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug(`Auth middleware: model=${Model.modelName}, decodedId=${decoded.id}`);
+    }
     const user = await Model.findById(decoded.id).select('-password');
     
     if (!user) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug(`Auth middleware: user not found for model=${Model.modelName} id=${decoded.id}`);
+      }
       return res.status(401).json({
         success: false,
         error: 'User not found'

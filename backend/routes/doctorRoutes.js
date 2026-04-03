@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
 const doctorController = require('../controllers/doctorController');
-const { protectDoctor } = require('../middleware/auth');
+const { protectDoctor, protectPatient } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 // Public routes
@@ -21,10 +21,14 @@ router.post(
 
 router.post('/login', doctorController.login);
 
-// Protected routes
+// Search route (accessible by patients) - must be before protectDoctor
+// Keep search protected by patient middleware
+router.get('/search', protectPatient, doctorController.searchDoctors);
+
+// Protected routes for doctors
 router.use(protectDoctor);
 
-// New routes for onboarding
+// New routes for onboarding (doctor-only)
 router.get('/onboarding-status', doctorController.getOnboardingStatus);
 router.post(
   '/onboard',
@@ -36,10 +40,7 @@ router.post(
   doctorController.onboardDoctor
 );
 
-// Search route (accessible by patients)
-router.get('/search', doctorController.searchDoctors);
-
-// Existing routes
+// Existing routes (doctor-only)
 router.get('/profile', doctorController.getProfile);
 router.put('/profile', doctorController.updateProfile);
 router.post('/upload-documents', upload.array('documents', 5), doctorController.uploadDocuments);

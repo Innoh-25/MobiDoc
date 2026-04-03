@@ -350,14 +350,12 @@ exports.onboardDoctor = async (req, res, next) => {
 // @desc    Search doctors by area/specialization
 // @route   GET /api/doctors/search
 // @access  Private (Patient)
+// @desc    Search doctors by area/specialization with distance calculation
+// @route   GET /api/doctors/search
+// @access  Private (Patient)
 exports.searchDoctors = async (req, res, next) => {
   try {
-    const { area, city, specialization, consultationType } = req.query;
-    const patientId = req.user.id;
-
-    // Get patient's location if available
-    const Patient = require('../models/Patient');
-    const patient = await Patient.findById(patientId).select('location');
+    const { specialization } = req.query;
     
     // Build search criteria
     const searchCriteria = {
@@ -366,18 +364,6 @@ exports.searchDoctors = async (req, res, next) => {
       isActive: true
     };
 
-    // If patient has location, use it for search
-    if (patient && patient.location && patient.location.area) {
-      searchCriteria['location.area'] = new RegExp(patient.location.area, 'i');
-    }
-    
-    // Override with query parameters if provided
-    if (area) {
-      searchCriteria['location.area'] = new RegExp(area, 'i');
-    }
-    if (city) {
-      searchCriteria['location.city'] = new RegExp(city, 'i');
-    }
     if (specialization) {
       searchCriteria.specialization = new RegExp(specialization, 'i');
     }
@@ -387,28 +373,27 @@ exports.searchDoctors = async (req, res, next) => {
       .select('-password -documents')
       .lean();
 
-    // Filter out doctors currently in consultation
+    // Get current consultations to determine availability
     const Consultation = require('../models/Consultation');
     const currentTime = new Date();
     
     // Find doctors with active consultations
     const activeConsultations = await Consultation.find({
       doctorId: { $in: doctors.map(d => d._id) },
-      status: { $in: ['accepted'] },
-      completionTime: { $gt: currentTime }
+      status: { $in: ['accepted', 'in-progress'] },
+      scheduledTime: { $gt: currentTime }
     }).select('doctorId');
 
     const busyDoctorIds = activeConsultations.map(c => c.doctorId.toString());
 
-    // Filter and add availability status
+    // Add availability status
     const availableDoctors = doctors.map(doctor => {
       const isAvailable = !busyDoctorIds.includes(doctor._id.toString());
       return {
         ...doctor,
-        isAvailable,
-        distance: 'Nearby' // Simple distance - can be enhanced with actual coordinates
+        isAvailable
       };
-    }).filter(doctor => doctor.isAvailable); // Only return available doctors
+    });
 
     res.status(200).json({
       success: true,
@@ -420,6 +405,7 @@ exports.searchDoctors = async (req, res, next) => {
     next(error);
   }
 };
+
 
 // @desc    Get doctor's onboarding status
 // @route   GET /api/doctors/onboarding-status

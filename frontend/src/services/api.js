@@ -30,9 +30,16 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('userType');
-      window.location.href = '/login';
+      // Emit a global event so the React app can handle logout/navigation
+      // This avoids a hard full-page redirect which loses React Router state
+      try {
+        window.dispatchEvent(new CustomEvent('app:unauthorized'));
+      } catch (e) {
+        // Fallback to hard redirect if CustomEvent is not available
+        localStorage.removeItem('token');
+        localStorage.removeItem('userType');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
