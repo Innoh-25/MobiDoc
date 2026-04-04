@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useConsultation } from '../../context/ConsultationContext';
 import { StatsCard } from '../../components/dashboard/StatsCard';
@@ -15,6 +16,7 @@ import {
 const PatientDashboard = () => {
   const { user } = useAuth();
   const { consultations, loading, fetchPatientConsultations } = useConsultation();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -76,18 +78,69 @@ const PatientDashboard = () => {
           <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          <Link
-            to="/patient/consultations/request"
+          <button
+            onClick={async () => {
+              // First check support
+              if (!navigator.geolocation) {
+                toast.error('Geolocation is not supported by your browser');
+                return;
+              }
+
+              // If available, check permission state (best-effort)
+              try {
+                if (navigator.permissions && navigator.permissions.query) {
+                  const perm = await navigator.permissions.query({ name: 'geolocation' });
+                  if (perm.state === 'denied') {
+                    toast.error('Location access is blocked. Please enable location permission in your browser settings.');
+                    return;
+                  }
+                }
+              } catch (e) {
+                // ignore permission API errors
+              }
+
+              // Ask user in-app before triggering the browser permission prompt
+              const allow = window.confirm('MobiDoc needs access to your location to find nearby doctors. Allow location access?');
+              if (!allow) {
+                toast('Location permission is required to find nearby doctors');
+                return;
+              }
+
+              const id = toast.loading('Detecting location...');
+              try {
+                const pos = await new Promise((resolve, reject) => {
+                  navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                  });
+                });
+
+                const { latitude, longitude } = pos.coords;
+                const consultationData = {
+                  symptoms: '',
+                  consultationType: 'general',
+                  location: {
+                    address: `Location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+                    coordinates: { latitude, longitude }
+                  }
+                };
+
+                toast.success('Location detected', { id });
+                navigate('/patient/select-doctor', { state: { consultationData } });
+              } catch (err) {
+                console.error('Location detection failed', err);
+                toast.error('Failed to detect location. Please allow location access.', { id });
+              }
+            }}
             className="card p-6 text-center hover:shadow-md transition-shadow duration-200 group"
           >
             <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-primary-100 text-primary-600 mb-4 group-hover:bg-primary-200 transition-colors">
               <PlusIcon className="h-6 w-6" />
             </div>
             <h3 className="font-medium text-gray-900">Request Consultation</h3>
-            <p className="mt-2 text-sm text-gray-500">
-              Schedule a new medical consultation
-            </p>
-          </Link>
+            <p className="mt-2 text-sm text-gray-500">Quickly detect your location and find nearby doctors</p>
+          </button>
 
           <Link
             to="/patient/consultations"
@@ -184,7 +237,7 @@ const PatientDashboard = () => {
                   You haven't requested any consultations yet
                 </p>
                 <Link
-                  to="/patient/consultations/request"
+                  to="/patient/select-doctor"
                   className="btn-primary inline-flex items-center"
                 >
                   <PlusIcon className="h-4 w-4 mr-2" />

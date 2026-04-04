@@ -71,7 +71,7 @@ const PatientConsultations = () => {
           </p>
         </div>
         <Link
-          to="/patient/consultations/request"
+          to="/patient/select-doctor"
           className="btn-primary flex items-center mt-4 md:mt-0"
         >
           <PlusIcon className="h-4 w-4 mr-2" />
@@ -195,7 +195,7 @@ const PatientConsultations = () => {
             </p>
             {!searchTerm && statusFilter === 'all' && (
               <Link
-                to="/patient/consultations/request"
+                to="/patient/select-doctor"
                 className="btn-primary inline-flex items-center"
               >
                 <PlusIcon className="h-4 w-4 mr-2" />

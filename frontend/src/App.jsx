@@ -15,7 +15,6 @@ import AccountTypeSelection from './pages/auth/AccountTypeSelection'
 import PatientDashboard from './pages/patient/Dashboard';
 import PatientProfile from './pages/patient/Profile';
 import PatientConsultations from './pages/patient/Consultations';
-import RequestConsultation from './pages/patient/RequestConsultation';
 import SelectDoctor from './pages/patient/SelectDoctor';
 
 // Doctor Pages
@@ -70,7 +69,6 @@ function App() {
               <Route path="dashboard" element={<PatientDashboard />} />
               <Route path="profile" element={<PatientProfile />} />
               <Route path="consultations" element={<PatientConsultations />} />
-              <Route path="consultations/request" element={<RequestConsultation />} />
               <Route path="select-doctor" element={<SelectDoctor />} />
               <Route index element={<Navigate to="dashboard" />} />
             </Route>

@@ -212,7 +212,7 @@ const SelectDoctor = () => {
     <div className="animate-fade-in max-w-6xl mx-auto">
       <div className="mb-8">
         <button
-          onClick={() => navigate('/patient/consultations/request')}
+          onClick={() => navigate('/patient/dashboard')}
           className="flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
         >
           <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
