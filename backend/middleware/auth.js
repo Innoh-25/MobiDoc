@@ -50,13 +50,10 @@ const auth = (Model) => async (req, res, next) => {
       });
     }
     
-    // Check if user is active (for doctors)
-    if (Model.modelName === 'Doctor' && !user.isActive) {
-      return res.status(401).json({
-        success: false,
-        error: 'Doctor account is not active'
-      });
-    }
+    // NOTE: Do not enforce `isActive` here. Individual doctor endpoints should
+    // check account activation when appropriate. Allowing login and access to
+    // onboarding/status endpoints for non-active doctors makes it possible for
+    // doctors to submit documents and view pending approval state.
     
     req.user = user;
     next();

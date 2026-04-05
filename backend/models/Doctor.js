@@ -124,12 +124,13 @@ const doctorSchema = new mongoose.Schema({
     }
   },
   
-  // Documents (now separate from the documents array for verification)
-  documents: {
-    licenseDocument: { type: String }, // File path
-    idDocument: { type: String }, // File path
-    qualificationDocument: { type: String } // File path
-  },
+  // Documents: array of uploaded document records
+  documents: [{
+    fileName: { type: String },
+    filePath: { type: String },
+    uploadedAt: { type: Date, default: Date.now },
+    fieldname: { type: String }
+  }],
   
   verificationStatus: {
     type: String,

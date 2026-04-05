@@ -1,6 +1,7 @@
 const Doctor = require('../models/Doctor');
 const { generateToken } = require('../middleware/auth');
 const crypto = require('crypto');
+const path = require('path');
 
 // @desc    Register doctor
 // @route   POST /api/doctors/register
@@ -71,6 +72,20 @@ exports.register = async (req, res, next) => {
     });
     
   } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('onboardDoctor error for user:', req.user && req.user._id ? req.user._id.toString() : 'unknown');
+      console.error('onboardDoctor error message:', error.message);
+      console.error(error.stack);
+      try {
+        console.error('Request body preview:', Object.keys(req.body || {}).slice(0, 20));
+        if (req.files) {
+          if (Array.isArray(req.files)) console.error('req.files length:', req.files.length);
+          else console.error('req.files keys:', Object.keys(req.files));
+        }
+      } catch (e) {
+        console.error('Failed to log request preview:', e.message);
+      }
+    }
     next(error);
   }
 };
@@ -108,37 +123,24 @@ exports.login = async (req, res, next) => {
       });
     }
     
-    // Check if doctor is verified and active
-    if (doctor.verificationStatus !== 'approved') {
-      return res.status(401).json({
-        success: false,
-        error: 'Your account is pending verification',
-        verificationStatus: doctor.verificationStatus
-      });
-    }
-    
-    if (!doctor.isActive) {
-      return res.status(401).json({
-        success: false,
-        error: 'Your account is not active'
-      });
-    }
-    
-    // Generate token
+    // Allow login even if the doctor hasn't been approved yet. The frontend
+    // will show a pending-approval screen for unapproved accounts. Keep
+    // returning verification status and isActive flag so the client can
+    // decide where to navigate.
     const token = generateToken(doctor._id);
-    
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       token,
       data: {
         id: doctor._id,
         email: doctor.email,
         fullName: doctor.fullName,
-        specialization: doctor.specialization,
         verificationStatus: doctor.verificationStatus,
         isActive: doctor.isActive
       }
     });
+    
+    // (response already returned above)
     
   } catch (error) {
     next(error);
@@ -234,12 +236,17 @@ exports.uploadDocuments = async (req, res, next) => {
     
     const doctor = await Doctor.findById(req.user.id);
     
-    // Add uploaded files to documents array
+    // Add uploaded files to documents array. Store a web-accessible path so
+    // the frontend/admin UI can link to the file. The server serves files
+    // from /uploads (see server.js), so store paths like `/uploads/<basename>`.
+    const uploadsBase = process.env.UPLOADS_BASE_URL || '/uploads';
     req.files.forEach(file => {
+      const webPath = `${uploadsBase}/${path.basename(file.path)}`;
       doctor.documents.push({
         fileName: file.originalname,
-        filePath: file.path,
-        uploadedAt: Date.now()
+        filePath: webPath,
+        uploadedAt: Date.now(),
+        fieldname: file.fieldname
       });
     });
     
@@ -261,6 +268,23 @@ exports.uploadDocuments = async (req, res, next) => {
 // @access  Private (Doctor)
 exports.onboardDoctor = async (req, res, next) => {
   try {
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('onboardDoctor called by user:', req.user && req.user._id ? req.user._id.toString() : 'unknown');
+      console.debug('onboardDoctor req.body keys:', Object.keys(req.body || {}));
+      console.debug('onboardDoctor req.files type:', typeof req.files, Array.isArray(req.files) ? 'array' : 'object');
+      if (req.files && typeof req.files === 'object') {
+        try {
+          // show counts per field when req.files is object
+          if (!Array.isArray(req.files)) {
+            Object.keys(req.files).forEach(k => {
+              console.debug(`onboardDoctor files[${k}] count:`, Array.isArray(req.files[k]) ? req.files[k].length : 0);
+            });
+          }
+        } catch (e) {
+          console.debug('onboardDoctor: failed to introspect req.files', e.message);
+        }
+      }
+    }
     const {
       location,
       consultationFee,
@@ -280,12 +304,9 @@ exports.onboardDoctor = async (req, res, next) => {
       });
     }
 
-    if (doctor.verificationStatus !== 'approved') {
-      return res.status(400).json({
-        success: false,
-        error: 'Your account must be approved by admin first'
-      });
-    }
+    // Allow doctors to submit onboarding even if verification is still pending.
+    // Admin will review submitted documents and approve/reject via the admin
+    // interface.
 
     if (doctor.isOnboarded) {
       return res.status(400).json({
@@ -317,22 +338,54 @@ exports.onboardDoctor = async (req, res, next) => {
       updateData['profile.emergencyContact'] = emergencyContact;
     }
 
-    // Handle file uploads if any
+
+    // Handle possible legacy documents shape in DB: convert object -> array
+    try {
+      if (doctor.documents && !Array.isArray(doctor.documents)) {
+        const converted = [];
+        Object.keys(doctor.documents).forEach(k => {
+          const val = doctor.documents[k];
+          if (val) {
+              // Normalize legacy stored paths so they become web paths
+              const uploadsBase = process.env.UPLOADS_BASE_URL || '/uploads';
+              const webPath = `${uploadsBase}/${path.basename(val)}`;
+              converted.push({ fileName: path.basename(val), filePath: webPath, uploadedAt: Date.now(), fieldname: k });
+            }
+        });
+        doctor.documents = converted;
+        await doctor.save();
+      }
+    } catch (e) {
+      // if conversion fails, log and continue; we will attempt safe update below
+      console.debug('Failed to normalize doctor.documents:', e.message);
+    }
+
+    // Collect new document records from req.files (handles both array and fields shape)
+    const newDocs = [];
     if (req.files) {
-      req.files.forEach(file => {
-        if (file.fieldname === 'licenseDocument') {
-          updateData['documents.licenseDocument'] = file.path;
-        } else if (file.fieldname === 'idDocument') {
-          updateData['documents.idDocument'] = file.path;
-        } else if (file.fieldname === 'qualificationDocument') {
-          updateData['documents.qualificationDocument'] = file.path;
-        }
+      let fileList = [];
+      if (Array.isArray(req.files)) fileList = req.files;
+      else if (typeof req.files === 'object') {
+        Object.values(req.files).forEach(arr => {
+          if (Array.isArray(arr)) fileList = fileList.concat(arr);
+        });
+      }
+
+      const uploadsBase = process.env.UPLOADS_BASE_URL || '/uploads';
+      fileList.forEach(file => {
+        const webPath = `${uploadsBase}/${path.basename(file.path)}`;
+        newDocs.push({ fileName: file.originalname, filePath: webPath, uploadedAt: Date.now(), fieldname: file.fieldname });
       });
     }
 
+    // Build update operations: $set for profile/location flags, $push for new documents
+    const updateOps = {};
+    if (Object.keys(updateData).length > 0) updateOps.$set = updateData;
+    if (newDocs.length > 0) updateOps.$push = { documents: { $each: newDocs } };
+
     const updatedDoctor = await Doctor.findByIdAndUpdate(
       req.user.id,
-      { $set: updateData },
+      updateOps,
       { new: true, runValidators: true }
     ).select('-password');
 

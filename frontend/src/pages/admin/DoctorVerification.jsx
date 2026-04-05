@@ -297,11 +297,27 @@ const DoctorVerification = () => {
                       <h4 className="font-medium text-gray-900 mb-3">Uploaded Documents</h4>
                       <div className="space-y-2">
                         {selectedDoctor.documents.map((doc, index) => (
-                          <div key={index} className="p-2 bg-gray-50 rounded">
-                            <p className="text-sm font-medium text-gray-900">{doc.fileName}</p>
-                            <p className="text-xs text-gray-500">
-                              Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
-                            </p>
+                          <div key={index} className="p-2 bg-gray-50 rounded flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{doc.fileName}</p>
+                              <p className="text-xs text-gray-500">
+                                Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div>
+                              {doc.filePath ? (
+                                <a
+                                  href={doc.filePath}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center text-sm text-blue-600 hover:underline"
+                                >
+                                  View
+                                </a>
+                              ) : (
+                                <span className="text-sm text-gray-500">No file</span>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>

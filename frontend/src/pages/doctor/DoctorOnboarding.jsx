@@ -6,18 +6,18 @@ import * as yup from 'yup';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
+import { UserIcon, BriefcaseIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 const schema = yup.object({
-  area: yup.string().required('Area is required'),
-  city: yup.string().required('City is required'),
-  county: yup.string().required('County is required'),
+  // Profile section
   address: yup.string().required('Address is required'),
-  consultationFee: yup.number().min(0, 'Fee must be positive').required('Consultation fee is required'),
+  languages: yup.string(),
   bio: yup.string().max(500, 'Bio must be less than 500 characters'),
-  languages: yup.array().of(yup.string()),
-  emergencyContactName: yup.string().required('Emergency contact name is required'),
-  emergencyContactPhone: yup.string().required('Emergency contact phone is required'),
-  emergencyContactRelationship: yup.string().required('Emergency contact relationship is required'),
+  
+  // Professional section
+  medicalSchool: yup.string().required('Medical school is required'),
+  graduationYear: yup.number().min(1900).max(new Date().getFullYear()).required('Graduation year is required'),
+  yearsOfExperience: yup.number().min(0).required('Years of experience is required'),
 });
 
 const DoctorOnboarding = () => {
@@ -25,23 +25,29 @@ const DoctorOnboarding = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [days, setDays] = useState([]);
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('17:00');
   const [files, setFiles] = useState({
     licenseDocument: null,
     idDocument: null,
     qualificationDocument: null,
   });
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm({
     resolver: yupResolver(schema),
   });
 
   useEffect(() => {
-    // Check if doctor is already onboarded
     checkOnboardingStatus();
-  }, []);
+    // Pre-fill user data from auth context
+    if (user) {
+      setValue('fullName', user.fullName || '');
+      setValue('email', user.email || '');
+      setValue('phone', user.phone || '');
+      setValue('gender', user.gender || '');
+      setValue('dateOfBirth', user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : '');
+      setValue('licenseNumber', user.licenseNumber || '');
+      setValue('specialization', user.specialization || '');
+    }
+  }, [user]);
 
   const checkOnboardingStatus = async () => {
     try {
@@ -54,40 +60,42 @@ const DoctorOnboarding = () => {
     }
   };
 
-  const handleDayToggle = (day) => {
-    setDays(prev =>
-      prev.includes(day)
-        ? prev.filter(d => d !== day)
-        : [...prev, day]
-    );
-  };
-
   const handleFileChange = (field, file) => {
+    if (!file) return;
+
+    // Basic validation
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      toast.error('File is too large. Maximum size is 5MB.');
+      return;
+    }
+
     setFiles(prev => ({
       ...prev,
       [field]: file
     }));
   };
 
-  const uploadFile = async (field, file) => {
-    const formData = new FormData();
-    formData.append(field, file);
-    
+  const removeFile = (field) => {
+    setFiles(prev => ({ ...prev, [field]: null }));
+    // Also clear the hidden input so the same file can be re-selected
     try {
-      const response = await api.post(`/doctors/upload-single`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data.data.filePath;
-    } catch (error) {
-      throw new Error(`Failed to upload ${field}`);
+      const idMap = {
+        licenseDocument: 'licenseDocumentInput',
+        idDocument: 'idDocumentInput',
+        qualificationDocument: 'qualificationDocumentInput',
+      };
+      const input = document.getElementById(idMap[field]);
+      if (input) input.value = '';
+    } catch (e) {
+      // ignore DOM errors
     }
   };
 
   const onSubmit = async (data) => {
-    if (days.length === 0) {
-      toast.error('Please select at least one available day');
+    // Validate required files exist
+    if (!files.licenseDocument || !files.idDocument || !files.qualificationDocument) {
+      toast.error('Please upload all required documents (license, ID, and degree certificate).');
       return;
     }
 
@@ -95,56 +103,26 @@ const DoctorOnboarding = () => {
     setUploading(true);
 
     try {
-      const uploadedFiles = {};
-      
-      // Upload files if present
-      for (const [field, file] of Object.entries(files)) {
-        if (file) {
-          const filePath = await uploadFile(field, file);
-          uploadedFiles[field] = filePath;
-        }
-      }
-
-      const onboardingData = {
-        location: {
-          area: data.area,
-          city: data.city,
-          county: data.county,
-          address: data.address,
-        },
-        consultationFee: data.consultationFee,
-        availability: {
-          days,
-          hours: {
-            start: startTime,
-            end: endTime,
-          },
-        },
-        languages: data.languages?.split(',').map(lang => lang.trim()) || [],
-        bio: data.bio,
-        emergencyContact: {
-          name: data.emergencyContactName,
-          phone: data.emergencyContactPhone,
-          relationship: data.emergencyContactRelationship,
-        },
-        ...uploadedFiles,
-      };
-
       const formData = new FormData();
-      Object.entries(onboardingData).forEach(([key, value]) => {
-        if (typeof value === 'object') {
-          formData.append(key, JSON.stringify(value));
-        } else {
-          formData.append(key, value);
-        }
-      });
-
-      // Upload files
-      Object.entries(files).forEach(([field, file]) => {
-        if (file) {
-          formData.append(field, file);
-        }
-      });
+      
+      // Add all form data
+      formData.append('address', data.address);
+      formData.append('languages', data.languages || '');
+      formData.append('bio', data.bio || '');
+      formData.append('medicalSchool', data.medicalSchool);
+      formData.append('graduationYear', data.graduationYear);
+      formData.append('yearsOfExperience', data.yearsOfExperience);
+      
+      // Add files
+      if (files.licenseDocument) {
+        formData.append('licenseDocument', files.licenseDocument);
+      }
+      if (files.idDocument) {
+        formData.append('idDocument', files.idDocument);
+      }
+      if (files.qualificationDocument) {
+        formData.append('qualificationDocument', files.qualificationDocument);
+      }
 
       const response = await api.post('/doctors/onboard', formData, {
         headers: {
@@ -152,9 +130,16 @@ const DoctorOnboarding = () => {
         },
       });
 
-      toast.success('Onboarding completed successfully! Waiting for admin approval.');
-      navigate('/doctor/dashboard');
+      toast.success('Onboarding completed successfully!');
+      const updated = response.data.data;
+      // If the account is not yet approved, send user to pending approval page
+      if (updated.verificationStatus && updated.verificationStatus !== 'approved') {
+        navigate('/doctor/pending');
+      } else {
+        navigate('/doctor/dashboard');
+      }
     } catch (error) {
+      console.error('Onboarding error:', error);
       toast.error(error.response?.data?.error || 'Failed to complete onboarding');
     } finally {
       setLoading(false);
@@ -162,121 +147,69 @@ const DoctorOnboarding = () => {
     }
   };
 
-  const dayOptions = [
-    { value: 'monday', label: 'Monday' },
-    { value: 'tuesday', label: 'Tuesday' },
-    { value: 'wednesday', label: 'Wednesday' },
-    { value: 'thursday', label: 'Thursday' },
-    { value: 'friday', label: 'Friday' },
-    { value: 'saturday', label: 'Saturday' },
-    { value: 'sunday', label: 'Sunday' },
-  ];
-
   return (
     <div className="animate-fade-in max-w-4xl mx-auto">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Complete Your Profile</h1>
         <p className="mt-2 text-gray-600">
-          Please provide additional information to start using MobiDoc as a doctor
+          Please provide additional information to complete your registration
         </p>
       </div>
 
       <div className="card p-8 shadow-lg">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-          {/* Location Information */}
+          
+          {/* Profile Section */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-              Location Information
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200 flex items-center">
+              <UserIcon className="h-5 w-5 mr-2 text-primary-600" />
+              Profile Information
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Read-only information from registration */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <input type="text" {...register('fullName')} disabled className="input bg-gray-100" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" {...register('email')} disabled className="input bg-gray-100" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                <input type="tel" {...register('phone')} disabled className="input bg-gray-100" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                <input type="text" {...register('gender')} disabled className="input bg-gray-100" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                <input type="date" {...register('dateOfBirth')} disabled className="input bg-gray-100" />
+              </div>
+            </div>
+
+            {/* New profile fields */}
+            <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Area/Neighborhood *
-                </label>
-                <input
-                  {...register('area')}
-                  type="text"
-                  className="input"
-                  placeholder="e.g., Westlands"
-                />
-                {errors.area && (
-                  <p className="mt-1 text-sm text-red-600">{errors.area.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  City *
-                </label>
-                <input
-                  {...register('city')}
-                  type="text"
-                  className="input"
-                  placeholder="e.g., Nairobi"
-                />
-                {errors.city && (
-                  <p className="mt-1 text-sm text-red-600">{errors.city.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  County *
-                </label>
-                <input
-                  {...register('county')}
-                  type="text"
-                  className="input"
-                  placeholder="e.g., Nairobi County"
-                />
-                {errors.county && (
-                  <p className="mt-1 text-sm text-red-600">{errors.county.message}</p>
-                )}
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Address *
+                  Residential Address *
                 </label>
                 <input
                   {...register('address')}
                   type="text"
                   className="input"
-                  placeholder="e.g., 123 Main Street, Westlands"
+                  placeholder="e.g., 123 Main Street, Westlands, Nairobi"
                 />
                 {errors.address && (
                   <p className="mt-1 text-sm text-red-600">{errors.address.message}</p>
                 )}
               </div>
-            </div>
-          </div>
-
-          {/* Professional Information */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-              Professional Information
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Consultation Fee (KES) *
-                </label>
-                <input
-                  {...register('consultationFee')}
-                  type="number"
-                  min="0"
-                  step="100"
-                  className="input"
-                  placeholder="2000"
-                />
-                {errors.consultationFee && (
-                  <p className="mt-1 text-sm text-red-600">{errors.consultationFee.message}</p>
-                )}
-              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Languages (comma separated)
+                  Languages Spoken
                 </label>
                 <input
                   {...register('languages')}
@@ -284,175 +217,207 @@ const DoctorOnboarding = () => {
                   className="input"
                   placeholder="e.g., English, Swahili, French"
                 />
+                <p className="mt-1 text-xs text-gray-500">Separate languages with commas</p>
               </div>
 
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bio
+                  Bio / About Me
                 </label>
                 <textarea
                   {...register('bio')}
-                  rows="3"
+                  rows="4"
                   className="input"
-                  placeholder="Tell patients about your experience and approach..."
+                  placeholder="Tell us about yourself, your experience, and your approach to patient care..."
                   maxLength="500"
                 />
                 {errors.bio && (
                   <p className="mt-1 text-sm text-red-600">{errors.bio.message}</p>
                 )}
+                <p className="mt-1 text-xs text-gray-500">Maximum 500 characters</p>
               </div>
             </div>
           </div>
 
-          {/* Availability */}
+          {/* Professional Section */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-              Availability
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200 flex items-center">
+              <BriefcaseIcon className="h-5 w-5 mr-2 text-primary-600" />
+              Professional Information
             </h3>
+            
+            {/* Read-only professional info from registration */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg mb-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Medical License Number</label>
+                <input type="text" {...register('licenseNumber')} disabled className="input bg-gray-100" />
+              </div>
+            </div>
+
+            {/* New professional fields */}
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Available Days *
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Medical School *
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {dayOptions.map((day) => (
-                    <button
-                      key={day.value}
-                      type="button"
-                      onClick={() => handleDayToggle(day.value)}
-                      className={`px-4 py-2 rounded-lg border ${
-                        days.includes(day.value)
-                          ? 'bg-primary-100 border-primary-500 text-primary-700'
-                          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      {day.label}
-                    </button>
-                  ))}
-                </div>
+                <input
+                  {...register('medicalSchool')}
+                  type="text"
+                  className="input"
+                  placeholder="e.g., University of Nairobi, Kenyatta University"
+                />
+                {errors.medicalSchool && (
+                  <p className="mt-1 text-sm text-red-600">{errors.medicalSchool.message}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Time *
+                    Graduation Year *
                   </label>
                   <input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
+                    {...register('graduationYear')}
+                    type="number"
+                    min="1900"
+                    max={new Date().getFullYear()}
                     className="input"
+                    placeholder="e.g., 2015"
                   />
+                  {errors.graduationYear && (
+                    <p className="mt-1 text-sm text-red-600">{errors.graduationYear.message}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    End Time *
+                    Years of Experience *
                   </label>
                   <input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
+                    {...register('yearsOfExperience')}
+                    type="number"
+                    min="0"
                     className="input"
+                    placeholder="e.g., 5"
                   />
+                  {errors.yearsOfExperience && (
+                    <p className="mt-1 text-sm text-red-600">{errors.yearsOfExperience.message}</p>
+                  )}
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Emergency Contact */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-              Emergency Contact
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name *
-                </label>
-                <input
-                  {...register('emergencyContactName')}
-                  type="text"
-                  className="input"
-                  placeholder="John Doe"
-                />
-                {errors.emergencyContactName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.emergencyContactName.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone *
-                </label>
-                <input
-                  {...register('emergencyContactPhone')}
-                  type="tel"
-                  className="input"
-                  placeholder="0712345678"
-                />
-                {errors.emergencyContactPhone && (
-                  <p className="mt-1 text-sm text-red-600">{errors.emergencyContactPhone.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Relationship *
-                </label>
-                <input
-                  {...register('emergencyContactRelationship')}
-                  type="text"
-                  className="input"
-                  placeholder="Spouse, Parent, etc."
-                />
-                {errors.emergencyContactRelationship && (
-                  <p className="mt-1 text-sm text-red-600">{errors.emergencyContactRelationship.message}</p>
-                )}
               </div>
             </div>
           </div>
 
           {/* Document Uploads */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200 flex items-center">
+              <DocumentTextIcon className="h-5 w-5 mr-2 text-primary-600" />
               Required Documents
             </h3>
-            <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Medical License Document
+                  Medical License Document *
                 </label>
+                <div
+                  onClick={() => document.getElementById('licenseDocumentInput').click()}
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-primary-500 hover:bg-primary-50 transition-all duration-200"
+                >
+                  <svg className="h-12 w-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm text-gray-600">Click to upload</p>
+                </div>
                 <input
+                  id="licenseDocumentInput"
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={(e) => handleFileChange('licenseDocument', e.target.files[0])}
-                  className="input"
+                  className="hidden"
                 />
+                {files.licenseDocument && (
+                  <div className="mt-3 text-sm flex items-center justify-center">
+                    <div className="truncate">{files.licenseDocument.name}</div>
+                    <button
+                      type="button"
+                      onClick={() => removeFile('licenseDocument')}
+                      className="ml-3 text-sm text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
               </div>
 
+             
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ID Document (National ID/Passport)
+                  National ID / Passport *
                 </label>
+                <div
+                  onClick={() => document.getElementById('idDocumentInput').click()}
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-primary-500 hover:bg-primary-50 transition-all duration-200"
+                >
+                  <svg className="h-12 w-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm text-gray-600">Click to upload</p>
+                </div>
                 <input
+                  id="idDocumentInput"
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={(e) => handleFileChange('idDocument', e.target.files[0])}
-                  className="input"
+                  className="hidden"
                 />
+                {files.idDocument && (
+                  <div className="mt-3 text-sm flex items-center justify-center">
+                    <div className="truncate">{files.idDocument.name}</div>
+                    <button
+                      type="button"
+                      onClick={() => removeFile('idDocument')}
+                      className="ml-3 text-sm text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
               </div>
 
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Qualification Certificates
+                  Medical Degree Certificate *
                 </label>
+                <div
+                  onClick={() => document.getElementById('qualificationDocumentInput').click()}
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-primary-500 hover:bg-primary-50 transition-all duration-200"
+                >
+                  <svg className="h-12 w-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm text-gray-600">Click to upload</p>
+                </div>
                 <input
+                  id="qualificationDocumentInput"
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={(e) => handleFileChange('qualificationDocument', e.target.files[0])}
-                  className="input"
+                  className="hidden"
                 />
+                {files.qualificationDocument && (
+                  <div className="mt-3 text-sm flex items-center justify-center">
+                    <div className="truncate">{files.qualificationDocument.name}</div>
+                    <button
+                      type="button"
+                      onClick={() => removeFile('qualificationDocument')}
+                      className="ml-3 text-sm text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

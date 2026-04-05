@@ -8,6 +8,7 @@ const xss = require('xss-clean');
 // require the internal clean function so we can sanitize in-place without reassigning req properties
 const xssLib = require('xss-clean/lib/xss');
 const path = require('path');
+const fs = require('fs');
 
 // Load environment variables
 dotenv.config();
@@ -105,7 +106,23 @@ app.use((req, res, next) => {
 });
 
 // Serve static files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Ensure uploads directory exists before serving or writing files
+try {
+  const uploadsDir = process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log('Created uploads directory at', uploadsDir);
+  }
+} catch (err) {
+  console.error('Failed to ensure uploads directory exists:', err.message);
+}
+
+// Serve uploaded files. The base URL can be configured with UPLOADS_BASE_URL
+// (defaults to '/uploads') and the directory with UPLOADS_DIR. This allows
+// deployments to mount a persistent volume or external storage path.
+const uploadsBaseUrl = process.env.UPLOADS_BASE_URL || '/uploads';
+const uploadsServeDir = process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : path.join(__dirname, 'uploads');
+app.use(uploadsBaseUrl, express.static(uploadsServeDir));
 
 // API Routes
 app.use('/api/patients', patientRoutes);

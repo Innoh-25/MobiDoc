@@ -23,10 +23,13 @@ import DoctorProfile from './pages/doctor/Profile';
 import DoctorConsultations from './pages/doctor/Consultations';
 import DoctorOnboarding from './pages/doctor/DoctorOnboarding';
 import AvailableConsultations from './pages/doctor/AvailableConsultations';
+import PendingApproval from './pages/doctor/PendingApproval';
 
 // Admin Pages
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/Dashboard';
+import DoctorsManagement from './pages/admin/DoctorsManagement';
+import AdminPendingDoctors from './pages/admin/PendingDoctors';
 
 // Common
 // import NotFound from './pages/NotFound';
@@ -76,6 +79,7 @@ function App() {
             {/* Doctor Routes */}
             <Route path="/doctor" element={<PrivateRoute userType="doctor"><Layout /></PrivateRoute>}>
               <Route path="dashboard" element={<DoctorDashboard />} />
+              <Route path="pending" element={<PendingApproval />} />
               <Route path="onboarding" element={<DoctorOnboarding />} />
               <Route path="profile" element={<DoctorProfile />} />
               <Route path="consultations" element={<DoctorConsultations />} />
@@ -86,6 +90,8 @@ function App() {
             {/* Admin Routes */}
             <Route path="/admin" element={<PrivateRoute userType="admin"><Layout /></PrivateRoute>}>
               <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="doctors" element={<DoctorsManagement />} />
+              <Route path="doctors/pending" element={<AdminPendingDoctors />} />
               <Route index element={<Navigate to="dashboard" />} />
             </Route>
 

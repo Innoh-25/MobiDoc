@@ -68,10 +68,15 @@ export const AuthProvider = ({ children }) => {
       if (userType === 'doctor') {
         try {
           const onboardingStatus = await api.get('/doctors/onboarding-status');
-          if (!onboardingStatus.data.data.isOnboarded && 
-              onboardingStatus.data.data.verificationStatus === 'approved') {
-            navigate('/doctor/onboarding');
-          }
+            const st = onboardingStatus.data.data;
+            // If doctor hasn't completed onboarding but is approved, send to onboarding
+            if (!st.isOnboarded && st.verificationStatus === 'approved') {
+              navigate('/doctor/onboarding');
+            }
+            // If doctor is not approved yet, send to pending approval view
+            if (st.verificationStatus !== 'approved') {
+              navigate('/doctor/pending');
+            }
         } catch (error) {
           console.error('Error checking onboarding status:', error);
         }
@@ -107,11 +112,17 @@ export const AuthProvider = ({ children }) => {
       if (userType === 'doctor') {
         try {
           const onboardingStatus = await api.get('/doctors/onboarding-status');
-          if (!onboardingStatus.data.data.isOnboarded && 
-              onboardingStatus.data.data.verificationStatus === 'approved') {
-            navigate('/doctor/onboarding');
-            return { success: true };
-          }
+            const st = onboardingStatus.data.data;
+            // If doctor hasn't completed onboarding but is approved, send to onboarding
+            if (!st.isOnboarded && st.verificationStatus === 'approved') {
+              navigate('/doctor/onboarding');
+              return { success: true };
+            }
+            // If doctor is not approved yet, send to pending approval view
+            if (st.verificationStatus !== 'approved') {
+              navigate('/doctor/pending');
+              return { success: true };
+            }
         } catch (error) {
           console.error('Error checking onboarding status:', error);
         }
